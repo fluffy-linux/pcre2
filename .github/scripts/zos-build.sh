@@ -20,6 +20,7 @@ diagnostics()
 {
   rc=$?
   set +e
+  cd "$workspace"
   echo "== Build diagnostics (exit $rc) =="
   find . -name CMakeCCompiler.cmake -exec cat {} \;
   find . -name CMakeConfigureLog.yaml -exec cat {} \;
@@ -76,6 +77,35 @@ cd ..
 cmake="$workspace/tools/cmake-4.4.5/bin/cmake"
 ctest="$workspace/tools/cmake-4.4.5/bin/ctest"
 "$cmake" --version
+echo "== Unpatched CMake ABI regression =="
+probe="$workspace/source-cmake/.github/scripts/zos-native-probe"
+if "$cmake" -G Ninja -S "$probe" -B probe-unpatched \
+  -DCMAKE_C_COMPILER=ibm-clang -DCMAKE_C_FLAGS=-m64 \
+  -DEXPECTED_POINTER_SIZE=8 -DEXPECTED_CHAR_CODE=193; then
+  echo "Expected the unpatched CMake ABI probe to fail" >&2
+  exit 1
+else
+  echo "Unpatched CMake ABI probe failed (exit $?)"
+fi
+
+echo "== Preserve the requested ABI in CMake's ASCII probe =="
+patch -p1 -d "$workspace/tools/cmake-4.4.5/share/cmake-4.4" \
+  < source-cmake/.github/scripts/zos-cmake-abi.patch
+for bits in 32 64; do
+  for mode in ebcdic ascii; do
+    if test "$mode" = ebcdic; then
+      char_code=193
+    else
+      char_code=65
+    fi
+    "$cmake" -G Ninja -S "$probe" -B "probe-$bits-$mode" \
+      -DCMAKE_C_COMPILER=ibm-clang \
+      -DCMAKE_C_FLAGS="-m$bits -fzos-le-char-mode=$mode" \
+      -DEXPECTED_POINTER_SIZE="$((bits / 8))" \
+      -DEXPECTED_CHAR_CODE="$char_code"
+  done
+done
+
 echo "== CMake, IBM-Clang -m64 compiler =="
 # These contain the space-separated CI options, not individual arguments.
 # shellcheck disable=SC2086
