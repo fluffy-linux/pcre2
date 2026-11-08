@@ -472,44 +472,33 @@ jobs:
           mkdir -p ~/.ssh
           printenv ZOS_KNOWN_HOSTS > ~/.ssh/known_hosts
 
-          tar czf ../pcre2-build.tar.gz --exclude=.git .
-          mv ../pcre2-build.tar.gz .
+          tar czf "$RUNNER_TEMP/pcre2-build.tar.gz" --exclude=.git .
+          curl --fail --location --silent --show-error \
+            https://github.com/zopencommunity/cmakeport/releases/download/STABLE_cmakeport_503/cmake-4.4.5.20261028_190421.zos.pax.Z \
+            -o "$RUNNER_TEMP/cmake.pax.Z"
+          echo "749b7b3422d61ae19b69caeb5f471b367c9afcea0825af59ebdbd494b2fd8dc3  $RUNNER_TEMP/cmake.pax.Z" | sha256sum --check
 
-          scp -i id_rsa_zos -P "$ZOS_PORT" pcre2-build.tar.gz "$ZOS_HOST:/data/"
-          ssh -i id_rsa_zos -p "$ZOS_PORT" "$ZOS_HOST" /data/zopen/usr/local/bin/bash -c \
-            'export _BPXK_AUTOCVT=ON;
-            export _CEE_RUNOPTS="FILETAG(AUTOCVT,AUTOTAG) POSIX(ON)";
-            export _TAG_REDIR_ERR=txt;
-            export _TAG_REDIR_IN=txt;
-            export _TAG_REDIR_OUT=txt;
-            export PATH="/data/zopen/usr/local/bin:/data/zopen/usr/bin:/data/zopen/bin:/data/zopen/boot:/bin:/usr/lpp/IBM/cnw/v2r1/openxl/bin";
-            . /data/zopen/etc/zopen-config;
-            set -e;
-            set -x;
-            cd /data;
+          workspace="/data/pcre2-ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          {
+            echo "Remote mutation: mkdir $workspace"
+            ssh -i id_rsa_zos -p "$ZOS_PORT" "$ZOS_HOST" "mkdir '$workspace'"
+            echo "Remote mutation: upload source archive, build script and CMake package to $workspace"
+            scp -i id_rsa_zos -P "$ZOS_PORT" \
+              "$RUNNER_TEMP/pcre2-build.tar.gz" .github/scripts/zos-build.sh \
+              "$RUNNER_TEMP/cmake.pax.Z" "$ZOS_HOST:$workspace/"
+            printf -v remote_command '%q ' /data/zopen/usr/local/bin/bash \
+              "$workspace/zos-build.sh" "$workspace" "$CMAKE_FLAGS" "$CFLAGS_GCC_STYLE"
+            echo "Remote mutation: tag $workspace/zos-build.sh as ISO8859-1 and run traced build"
+            ssh -i id_rsa_zos -p "$ZOS_PORT" "$ZOS_HOST" \
+              "export _BPXK_AUTOCVT=ON; chtag -tc ISO8859-1 '$workspace/zos-build.sh'; $remote_command"
+          } 2>&1 | tee zos-build.log
 
-            echo "== Autoconf, XLC compiler ==";
-            rm -rf pcre2-build;
-            mkdir pcre2-build;
-            gtar xzf pcre2-build.tar.gz -C pcre2-build;
-            cd pcre2-build;
-            chtag -R -tc ISO8859-1 .;
-            MAKE=gmake CC=xlc ./configure --enable-ebcdic --disable-unicode;
-            gmake;
-            (gmake check; rc=$?; for i in test-suite.log Run*Test.log pcre2*_test.log; do echo "== $i =="; cat $i; done; exit $rc);
-
-            echo "== CMake, IBM-Clang -m64 compiler ==";
-            cd ..;
-            rm -rf pcre2-build;
-            mkdir pcre2-build;
-            gtar xzf pcre2-build.tar.gz -C pcre2-build;
-            cd pcre2-build;
-            chtag -R -tc ISO8859-1 .;
-            cmake $CMAKE_FLAGS -G Ninja -DPCRE2_EBCDIC=ON -DPCRE2_SUPPORT_UNICODE=OFF -DCMAKE_C_COMPILER=ibm-clang -DCMAKE_C_FLAGS="-m64 $CFLAGS_GCC_STYLE" -DCMAKE_COMPILE_WARNING_AS_ERROR=ON -DCMAKE_BUILD_TYPE=Release -B build
-            cd build;
-            ninja;
-            ctest -j3 --output-on-failure && (cat ./Testing/Temporary/LastTest.log || true)
-            '
+      - name: Upload z/OS command log
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: zos-build-${{ github.run_id }}-${{ github.run_attempt }}
+          path: zos-build.log
 
   distcheck:
     name: Build & verify distribution
