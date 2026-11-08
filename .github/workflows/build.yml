@@ -469,9 +469,10 @@ jobs:
           ZOS_KNOWN_HOSTS: ${{ secrets.ZOS_KNOWN_HOSTS }}
         shell: bash
         run: |
-          (umask 0077 && printenv ZOS_PRIVATE_KEY > id_rsa_zos)
-          mkdir -p ~/.ssh
-          printenv ZOS_KNOWN_HOSTS > ~/.ssh/known_hosts
+          key="$RUNNER_TEMP/id_rsa_zos"
+          known_hosts="$RUNNER_TEMP/zos-known-hosts"
+          (umask 0077 && printenv ZOS_PRIVATE_KEY > "$key")
+          printenv ZOS_KNOWN_HOSTS > "$known_hosts"
 
           tar czf "$RUNNER_TEMP/pcre2-build.tar.gz" --exclude=.git .
           curl --fail --location --silent --show-error \
@@ -482,17 +483,39 @@ jobs:
           workspace="/data/pcre2-ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           {
             echo "Remote mutation: mkdir $workspace"
-            ssh -i id_rsa_zos -p "$ZOS_PORT" "$ZOS_HOST" "mkdir '$workspace'"
+            ssh -i "$key" -o "UserKnownHostsFile=$known_hosts" -p "$ZOS_PORT" "$ZOS_HOST" "mkdir '$workspace'"
             echo "Remote mutation: upload source archive, build script and CMake package to $workspace"
-            scp -i id_rsa_zos -P "$ZOS_PORT" \
+            scp -i "$key" -o "UserKnownHostsFile=$known_hosts" -P "$ZOS_PORT" \
               "$RUNNER_TEMP/pcre2-build.tar.gz" .github/scripts/zos-build.sh \
               "$RUNNER_TEMP/cmake.pax.Z" "$ZOS_HOST:$workspace/"
             printf -v remote_command '%q ' /data/zopen/usr/local/bin/bash \
               "$workspace/zos-build.sh" "$workspace" "$CMAKE_FLAGS" "$CFLAGS_GCC_STYLE"
             echo "Remote mutation: tag $workspace/zos-build.sh as ISO8859-1 and run traced build"
-            ssh -i id_rsa_zos -p "$ZOS_PORT" "$ZOS_HOST" \
+            ssh -i "$key" -o "UserKnownHostsFile=$known_hosts" -p "$ZOS_PORT" "$ZOS_HOST" \
               "export _BPXK_AUTOCVT=ON; chtag -tc ISO8859-1 '$workspace/zos-build.sh'; $remote_command"
           } 2>&1 | tee zos-build.log
+
+      - name: Remove isolated z/OS workspaces
+        if: always()
+        env:
+          ZOS_HOST: ${{ secrets.ZOS_HOST }}
+          ZOS_PORT: ${{ secrets.ZOS_PORT }}
+        shell: bash
+        run: |
+          workspace="/data/pcre2-ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          {
+            echo "Remote mutation: rm -rf '$workspace' (this run's isolated workspace only)"
+            ssh -i "$RUNNER_TEMP/id_rsa_zos" -o "UserKnownHostsFile=$RUNNER_TEMP/zos-known-hosts" \
+              -p "$ZOS_PORT" "$ZOS_HOST" "rm -rf '$workspace' && test ! -e '$workspace'"
+            echo "Remote mutation: remove prior experiment workspaces 42474107374, 42474506787, 42475096955"
+            ssh -i "$RUNNER_TEMP/id_rsa_zos" -o "UserKnownHostsFile=$RUNNER_TEMP/zos-known-hosts" \
+              -p "$ZOS_PORT" "$ZOS_HOST" \
+              "rm -rf '/data/pcre2-ci-42474107374-1' '/data/pcre2-ci-42474506787-1' '/data/pcre2-ci-42475096955-1' &&
+              test ! -e '/data/pcre2-ci-42474107374-1' &&
+              test ! -e '/data/pcre2-ci-42474506787-1' &&
+              test ! -e '/data/pcre2-ci-42475096955-1'"
+          } 2>&1 | tee -a zos-build.log
+          rm -f "$RUNNER_TEMP/id_rsa_zos" "$RUNNER_TEMP/zos-known-hosts"
 
       - name: Upload z/OS command log
         if: always()

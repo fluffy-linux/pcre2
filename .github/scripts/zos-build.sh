@@ -81,16 +81,18 @@ echo "== Unpatched CMake ABI regression =="
 probe="$workspace/source-cmake/.github/scripts/zos-native-probe"
 if "$cmake" -G Ninja -S "$probe" -B probe-unpatched \
   -DCMAKE_C_COMPILER=ibm-clang -DCMAKE_C_FLAGS=-m64 \
-  -DEXPECTED_POINTER_SIZE=8 -DEXPECTED_CHAR_CODE=193; then
+  -DEXPECTED_POINTER_SIZE=8 -DEXPECTED_CHAR_CODE=193 > probe-unpatched.log 2>&1; then
+  cat probe-unpatched.log
   echo "Expected the unpatched CMake ABI probe to fail" >&2
   exit 1
 else
   echo "Unpatched CMake ABI probe failed (exit $?)"
+  cat probe-unpatched.log
+  grep -F "CMake reports 4-byte pointers; compiler uses 8" probe-unpatched.log
 fi
 
 echo "== Preserve the requested ABI in CMake's ASCII probe =="
-patch -p1 -d "$workspace/tools/cmake-4.4.5/share/cmake-4.4" \
-  < source-cmake/.github/scripts/zos-cmake-abi.patch
+"$cmake" -P source-cmake/.github/scripts/zos-cmake-abi.cmake
 for bits in 32 64; do
   for mode in ebcdic ascii; do
     if test "$mode" = ebcdic; then
