@@ -36,7 +36,13 @@ ibm-clang --version
 df -k .
 
 echo "== One-time official CMake upgrade =="
-zopen install --install-or-upgrade --no-deps --verbose -y 'cmake%STABLE_cmakeport_503'
+if zopen install --install-or-upgrade --no-deps --verbose --release-line STABLE -y cmake > zopen-install.log 2>&1; then
+  rc=0
+else
+  rc=$?
+fi
+cat zopen-install.log
+test "$rc" -eq 0
 set +u
 . /data/zopen/etc/zopen-config
 set -u

@@ -501,13 +501,6 @@ jobs:
             echo "Remote mutation: rm -rf '$workspace' (this run's isolated workspace only)"
             ssh -i "$RUNNER_TEMP/id_rsa_zos" -o "UserKnownHostsFile=$RUNNER_TEMP/zos-known-hosts" \
               -p "$ZOS_PORT" "$ZOS_HOST" "rm -rf '$workspace' && test ! -e '$workspace'"
-            echo "Remote mutation: remove prior experiment workspaces 42474107374, 42474506787, 42475096955"
-            ssh -i "$RUNNER_TEMP/id_rsa_zos" -o "UserKnownHostsFile=$RUNNER_TEMP/zos-known-hosts" \
-              -p "$ZOS_PORT" "$ZOS_HOST" \
-              "rm -rf '/data/pcre2-ci-42474107374-1' '/data/pcre2-ci-42474506787-1' '/data/pcre2-ci-42475096955-1' &&
-              test ! -e '/data/pcre2-ci-42474107374-1' &&
-              test ! -e '/data/pcre2-ci-42474506787-1' &&
-              test ! -e '/data/pcre2-ci-42475096955-1'"
           } 2>&1 | tee -a zos-build.log
           rm -f "$RUNNER_TEMP/id_rsa_zos" "$RUNNER_TEMP/zos-known-hosts"
 
