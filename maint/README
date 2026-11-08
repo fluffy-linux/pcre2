@@ -196,6 +196,28 @@ utf8.c
   See comments at its head for details.
 
 
+Building on z/OS
+===============
+
+The z/OS job in .github/workflows/build.yml is dispatched manually. It assumes
+that /data/zopen is already configured, with CMake, Ninja, GNU Make, XLC and
+IBM-Clang installed. CI does not install or patch tools. Use official zopen
+CMake packages that include ASCII compiler-identification probes: the older
+3.31.5 package could compile the probe but could not identify native EBCDIC
+IBM-Clang binaries, resulting in PCRE2's C99 configuration error.
+
+.github/scripts/zos-build.sh builds and tests native EBCDIC using both
+Autoconf/XLC and CMake/IBM-Clang (-m64). Source files are tagged ISO8859-1 for
+automatic conversion; this does not change the compiler's execution character
+set to ASCII. The workflow passes its warning flags explicitly through SSH.
+
+Each run uses /data/pcre2-ci-<run-id>-<attempt>, rather than reusing or removing
+another build's directory. Remote commands are logged, compiler configuration
+and test diagnostics are retained in the zos-build-<run-id>-<attempt> artifact,
+and the run's remote workspace is removed even on failure. SSH credentials
+remain on the Actions runner, outside the source archive.
+
+
 Updating to a new Unicode release
 =================================
 

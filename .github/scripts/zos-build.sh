@@ -5,6 +5,7 @@ set -x
 workspace=$1
 cmake_flags=$2
 cflags=$3
+# zopen-config parses positional arguments and is not nounset-safe.
 set --
 export _BPXK_AUTOCVT=ON
 export _CEE_RUNOPTS="FILETAG(AUTOCVT,AUTOTAG) POSIX(ON)"
@@ -34,22 +35,6 @@ command -v cmake ninja ibm-clang
 cmake --version
 ibm-clang --version
 df -k .
-
-echo "== One-time official CMake upgrade =="
-if zopen install --install-or-upgrade --no-deps --verbose --release-line STABLE -y cmake > zopen-install.log 2>&1; then
-  rc=0
-else
-  rc=$?
-fi
-cat zopen-install.log
-test "$rc" -eq 0
-set +u
-. /data/zopen/etc/zopen-config
-set -u
-hash -r
-command -v cmake
-cmake --version
-cmake -E sha256sum /data/zopen/usr/local/zopen/cmake/cmake/share/cmake-4.4/Modules/CMakeDetermineCompilerABI.cmake
 
 echo "== Autoconf, XLC compiler =="
 mkdir source-autoconf
