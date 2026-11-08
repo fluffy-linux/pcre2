@@ -35,6 +35,16 @@ cmake --version
 ibm-clang --version
 df -k .
 
+echo "== One-time official CMake upgrade =="
+zopen install --install-or-upgrade --no-deps --verbose -y 'cmake%STABLE_cmakeport_503'
+set +u
+. /data/zopen/etc/zopen-config
+set -u
+hash -r
+command -v cmake
+cmake --version
+cmake -E sha256sum /data/zopen/usr/local/zopen/cmake/cmake/share/cmake-4.4/Modules/CMakeDetermineCompilerABI.cmake
+
 echo "== Autoconf, XLC compiler =="
 mkdir source-autoconf
 gtar xzf pcre2-build.tar.gz -C source-autoconf
@@ -56,68 +66,20 @@ done
 test "$rc" -eq 0
 cd ..
 
-echo "== Installed CMake baseline, IBM-Clang -m64 =="
 mkdir source-cmake
 gtar xzf pcre2-build.tar.gz -C source-cmake
 chtag -R -tc ISO8859-1 source-cmake
-if cmake -G Ninja -S source-cmake -B baseline \
-  -DPCRE2_EBCDIC=ON -DPCRE2_SUPPORT_UNICODE=OFF \
-  -DCMAKE_C_COMPILER=ibm-clang -DCMAKE_C_FLAGS=-m64 \
-  -DCMAKE_COMPILE_WARNING_AS_ERROR=ON -DCMAKE_BUILD_TYPE=Release; then
-  echo "Installed CMake baseline configured successfully"
-else
-  echo "Installed CMake baseline failed (exit $?)"
-fi
-
-echo "== Isolated zopen CMake 4.4.5 =="
-mkdir tools
-cd tools
-pax -rzf ../cmake.pax.Z
-cd ..
-cmake="$workspace/tools/cmake-4.4.5/bin/cmake"
-ctest="$workspace/tools/cmake-4.4.5/bin/ctest"
-"$cmake" --version
-echo "== Unpatched CMake ABI regression =="
-probe="$workspace/source-cmake/.github/scripts/zos-native-probe"
-if "$cmake" -G Ninja -S "$probe" -B probe-unpatched \
-  -DCMAKE_C_COMPILER=ibm-clang -DCMAKE_C_FLAGS=-m64 \
-  -DEXPECTED_POINTER_SIZE=8 -DEXPECTED_CHAR_CODE=193 > probe-unpatched.log 2>&1; then
-  cat probe-unpatched.log
-  echo "Expected the unpatched CMake ABI probe to fail" >&2
-  exit 1
-else
-  echo "Unpatched CMake ABI probe failed (exit $?)"
-  cat probe-unpatched.log
-  grep -F "CMake reports 4-byte pointers; compiler uses 8" probe-unpatched.log
-fi
-
-echo "== Preserve the requested ABI in CMake's ASCII probe =="
-"$cmake" -P source-cmake/.github/scripts/zos-cmake-abi.cmake
-for bits in 32 64; do
-  for mode in ebcdic ascii; do
-    if test "$mode" = ebcdic; then
-      char_code=193
-    else
-      char_code=65
-    fi
-    "$cmake" -G Ninja -S "$probe" -B "probe-$bits-$mode" \
-      -DCMAKE_C_COMPILER=ibm-clang \
-      -DCMAKE_C_FLAGS="-m$bits -fzos-le-char-mode=$mode" \
-      -DEXPECTED_POINTER_SIZE="$((bits / 8))" \
-      -DEXPECTED_CHAR_CODE="$char_code"
-  done
-done
 
 echo "== CMake, IBM-Clang -m64 compiler =="
 # These contain the space-separated CI options, not individual arguments.
 # shellcheck disable=SC2086
-"$cmake" $cmake_flags -G Ninja -S source-cmake -B build \
+cmake $cmake_flags -G Ninja -S source-cmake -B build \
   -DPCRE2_EBCDIC=ON -DPCRE2_SUPPORT_UNICODE=OFF \
   -DCMAKE_C_COMPILER=ibm-clang -DCMAKE_C_FLAGS="-m64 $cflags" \
   -DCMAKE_COMPILE_WARNING_AS_ERROR=ON -DCMAKE_BUILD_TYPE=Release
-"$cmake" --build build
+cmake --build build
 cd build
-if "$ctest" -j3 --output-on-failure; then
+if ctest -j3 --output-on-failure; then
   rc=0
 else
   rc=$?
