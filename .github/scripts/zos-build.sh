@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 
-set -euxo pipefail
+set -x
 
 workspace=$1
 cmake_flags=$2
 cflags=$3
+set --
 export _BPXK_AUTOCVT=ON
 export _CEE_RUNOPTS="FILETAG(AUTOCVT,AUTOTAG) POSIX(ON)"
 export _TAG_REDIR_ERR=txt
@@ -12,6 +13,7 @@ export _TAG_REDIR_IN=txt
 export _TAG_REDIR_OUT=txt
 export PATH="/data/zopen/usr/local/bin:/data/zopen/usr/bin:/data/zopen/bin:/data/zopen/boot:/bin:/usr/lpp/IBM/cnw/v2r1/openxl/bin"
 . /data/zopen/etc/zopen-config
+set -euo pipefail
 cd "$workspace"
 
 diagnostics()

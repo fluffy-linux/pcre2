@@ -467,6 +467,7 @@ jobs:
           ZOS_PORT: ${{ secrets.ZOS_PORT }}
           ZOS_PRIVATE_KEY: ${{ secrets.ZOS_PRIVATE_KEY }}
           ZOS_KNOWN_HOSTS: ${{ secrets.ZOS_KNOWN_HOSTS }}
+        shell: bash
         run: |
           (umask 0077 && printenv ZOS_PRIVATE_KEY > id_rsa_zos)
           mkdir -p ~/.ssh
