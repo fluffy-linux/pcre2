@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/sw/bash/bin/bash
 
 prefix=@prefix@
 exec_prefix=@exec_prefix@
