@@ -1,4 +1,4 @@
-#! /bin/sh
+#!/sw/bash/bin/bash
 
 ###############################################################################
 # Run the PCRE2 tests using the pcre2test program. The appropriate tests are
